@@ -6,8 +6,10 @@ import java.awt.geom.Point2D;
 import java.util.Observable;
 import java.util.Observer;
 import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.Vector;
 import java.util.stream.Stream;
+import java.util.Iterator;
 
 import figures.enums.FigureType;
 import figures.enums.LineType;
@@ -15,7 +17,9 @@ import filters.FigureFilter;
 import filters.FigureFilters;
 import history.Memento;
 import history.Originator;
+import utils.PaintFactory;
 import utils.Signature;
+import utils.StrokeFactory;
 
 /**
  * Classe contenant l'ensemble des figures à dessiner (LE MODELE)
@@ -145,9 +149,18 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * 		- selectedFigure : aucune
 		 */
 		figures = new Vector<Figure>();
-
-		System.out.println(getClassName() + "::" + getMethodName()
-		    + " Drawing not properly initialized yet");
+		selectionIndex = new TreeSet<Integer>(Integer::compare);
+		shapeFilters = new FigureFilters<FigureType>();
+		fillColorFilter = null;
+		edgeColorFilter = null;
+		lineFilters = new FigureFilters<LineType>();
+		fillPaint = null;
+		edgePaint = null;
+		edgeWidth = 1;
+		edgeType = LineType.NONE;
+		stroke = StrokeFactory.getStroke(edgeType,edgeWidth);
+		/*System.out.println(getClassName() + "::" + getMethodName()
+		    + " Drawing not properly initialized yet");*/
 	}
 
 	/**
@@ -160,6 +173,14 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * TODO effacement des collections et mise à null des attributs
 		 * pour faciliter le travil du GC
 		 */
+		figures.clear();
+		selectionIndex.clear();
+		shapeFilters.clear();
+		fillColorFilter = null;
+		edgeColorFilter = null;
+		lineFilters = null;
+		fillPaint = null;
+		edgePaint = null;
 	}
 
 	/**
@@ -255,7 +276,7 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * Il faut regénérer le stroke
 		 * TODO Remplacer la un stroke de la StrokeFactory
 		 */
-		stroke = null;
+		stroke = StrokeFactory.getStroke(edgeType,edgeWidth);
 	}
 
 	/**
@@ -279,7 +300,7 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * Il faut regénérer le stroke
 		 * TODO Remplacer stroke par un nouveau stroke de la StrokeFactory
 		 */
-		stroke = null;
+		stroke = StrokeFactory.getStroke(edgeType,edgeWidth);
 	}
 
 	/**
@@ -297,16 +318,19 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * TODO Maintenant que l'on s'apprête effectivement à créer une figure on
 		 * ajoute/obtient les Paints et le Stroke des factories
 		 */
-
+		fillPaint = PaintFactory.getPaint(fillPaint);
+		edgePaint = PaintFactory.getPaint(edgePaint);
+		stroke = StrokeFactory.getStroke(stroke);
 		/*
 		 * TODO Obtention de la figure correspondant au type de figure choisi
 		 * grâce à type.getFigure(...)
 		 */
-		Figure newFigure = null;
+		Figure newFigure = type.getFigure(stroke, edgePaint, fillPaint, p);
 
 		/*
 		 * TODO Ajout de la figure à #figures
 		 */
+		figures.add(newFigure);
 
 		/* Notification des observers */
 		update();
@@ -325,7 +349,7 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * TODO renvoyer la dernière figure des #figures (sous entendu
 		 * celle qui vient d'être créée ou celle en cours de création)
 		 */
-		return null;
+		return figures.lastElement();
 	}
 
 	/**
@@ -337,12 +361,16 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 	public Figure getFigureAt(Point2D p)
 	{
 		selectedFigure = null;
+		Figure curFigure;
 
 		/*
 		 * TODO Recherche dans le flux des figures de la DERNIERE figure
 		 * contenant le point p.
 		 */
-
+		for(Iterator<Figure> it=figures.iterator();it.hasNext();) {
+			curFigure=it.next();
+			if(curFigure.contains(p)) selectedFigure=curFigure;
+		}
 		return selectedFigure;
 	}
 
@@ -357,6 +385,7 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		/*
 		 * TODO retrait de la dernière figure
 		 */
+		figures.remove(figures.size()-1);
 	}
 
 	/**
@@ -368,6 +397,7 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		/*
 		 * TODO effacement de toutes les figures
 		 */
+		figures.clear();
 	}
 
 	/**
@@ -402,6 +432,10 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		/*
 		 * TODO Ajout de filter à shapeFilters s'il n'y est pas déja
 		 */
+		if(shapeFilters.add(filter)) {
+			update();
+			return true;
+		}
 		return false;
 	}
 
@@ -417,6 +451,10 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		/*
 		 * TODO Retrait de filter à shapeFilters s'il en faisait partie
 		 */
+		if(shapeFilters.remove(filter)) {
+			update();
+			return true;
+		}
 		return false;
 	}
 
@@ -431,6 +469,8 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		/*
 		 * TODO Mise en place du fillColorFilter
 		 */
+		fillColorFilter=filter;
+		update();
 	}
 
 	/**
@@ -444,6 +484,8 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		/*
 		 * TODO Mise en place du edgeColorFilter
 		 */
+		edgeColorFilter=filter;
+		update();
 	}
 
 	/**
@@ -458,6 +500,10 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		/*
 		 * TODO Ajout de filter à lineFilters s'il n'y est pas déja
 		 */
+		if(lineFilters.add(filter)) {
+			update();
+			return true;
+		}
 		return false;
 
 	}
@@ -474,6 +520,10 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		/*
 		 * TODO Retrait de filter à lineFilters s'il en faisait partie
 		 */
+		if(lineFilters.remove(filter)) {
+			update();
+			return true;
+		}
 		return false;
 	}
 
@@ -485,6 +535,10 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		/*
 		 * TODO Remise à l'état non sélectionné de toutes les figures
 		 */
+		for(Iterator<Figure> it = figures.iterator();it.hasNext();){
+			it.next().selected=false;
+		}
+		selectionIndex.clear();
 	}
 
 	/**
@@ -499,6 +553,9 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * figures sélectionnées dans selectionIndex
 		 */
 		selectionIndex.clear();
+		for(int i=0;i<figures.size();i++) {
+			if(figures.get(i).isSelected()) selectionIndex.add(i);
+		}
 
 		System.out.println(getClassName() + "::" + getMethodName()
 		    + " Update Selection = " + selectionIndex);
@@ -513,7 +570,7 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 	public boolean hasSelection()
 	{
 		// TODO renvoyer vrai s'il y a des figures sélectionnées dans selectionIndex
-		return false;
+		return figures.stream().anyMatch((Figure f)->f.isSelected());
 	}
 
 	/**
@@ -528,6 +585,9 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * puis MAJ de la sélection (puisque ces figures n'existent plus)
 		 * puis MAJ modèle
 		 */
+		for(Iterator<Integer> it=selectionIndex.iterator();it.hasNext();) figures.remove((int) it.next());
+		selectionIndex.clear();
+		update();
 	}
 
 	/**
@@ -544,6 +604,9 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * pour aller plus vite)
 		 * MAJ
 		 */
+		selectionIndex.stream().forEach((Integer i)->{figures.get(i).setEdgePaint(edge);
+			figures.get(i).setFillPaint(fill);
+			figures.get(i).setStroke(stroke);});
 	}
 
 	/**
@@ -561,6 +624,13 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * collection de figures, puis de l'échanger avec #figures
 		 * MAJ de la sélection et du modèle
 		 */
+		Vector<Figure> newfigures=new Vector<Figure>();
+		selectionIndex.stream().forEach((Integer i) -> newfigures.add(figures.get(i)));
+		figures.stream().forEach((Figure f) -> newfigures.add(f));
+		figures.clear();
+		figures=newfigures;
+		updateSelection();
+		update();
 	}
 
 	/**
@@ -577,6 +647,13 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * collection de figures, puis de l'échanger avec #figures
 		 * MAJ de la sélection et du modèle
 		 */
+		Vector<Figure> newfigures=new Vector<Figure>();
+		figures.stream().filter((Figure f)->!selectionIndex.contains(figures.indexOf(f))).forEach((Figure f)->newfigures.add(f));
+		selectionIndex.stream().forEach((Integer i) -> newfigures.add(figures.get(i)));
+		figures.clear();
+		figures=newfigures;
+		updateSelection();
+		update();
 	}
 
 	/**
@@ -590,15 +667,17 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		Stream<Figure> figuresStream = figures.stream();
 		if (filtering)
 		{
+			shapeFilters.clear();;
 			// TODO Filtrez le flux de figures avec "shapeFilters" s'il est non vide
-
+			if(!shapeFilters.isEmpty()) figuresStream=figuresStream.filter((Figure f) -> shapeFilters.contains(f.getType()));
 			// TODO Filtrez le flux de figures avec "fillColorFilter" s'il est non null
-
+			if(fillColorFilter!=null) figuresStream=figuresStream.filter((Figure f) -> f.fill==fillColorFilter.getElement());
 			// TODO Filtrez le flux de figures avec "edgeColorFilter" s'il est non null
-
+			if(edgeColorFilter!=null) figuresStream=figuresStream.filter((Figure f) -> f.edge==edgeColorFilter.getElement());
 			// TODO Filtrez le flux de figures avec "lineFilters" s'il est non vide
+			if(!lineFilters.isEmpty()) figuresStream=figuresStream.filter((Figure f) -> lineFilters.contains(f.getLineType()));
+			
 		}
-
 		return figuresStream;
 	}
 
@@ -611,7 +690,7 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		/*
 		 * TODO Création d'un memento contenant l'ensemble des figures à dessiner
 		 */
-		return null;
+		return new Memento<Figure>(figures);
 	}
 
 	/* (non-Javadoc)
@@ -625,5 +704,8 @@ public class Drawing extends Observable implements Originator<Figure>, Signature
 		 * l'ensemble de figures à dessiner
 		 * MAJ
 		 */
+		figures.clear();
+		if(memento!=null) memento.getState().forEach((Figure f)->figures.add(f));
+		update();
 	}
 }
